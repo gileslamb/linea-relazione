@@ -1,0 +1,53 @@
+{
+  "metadata": {
+    "title": "Example Composition",
+    "duration": 180,
+    "description": "Template for force score authoring"
+  },
+  "scenes": [
+    {
+      "name": "Opening - Sparse Emergence",
+      "start": 0,
+      "duration": 60,
+      "forces": {
+        "flow": { "start": 0.2, "end": 0.4, "curve": "easeIn" },
+        "melody": { "start": 0.1, "end": 0.3, "curve": "linear" },
+        "rhythm": { "start": 0.05, "end": 0.2, "curve": "easeIn" },
+        "density": { "start": 0.15, "end": 0.35, "curve": "easeOut" },
+        "harmony": { "start": 0.7, "end": 0.6, "curve": "linear" },
+        "timbre": { "start": 0.3, "end": 0.4, "curve": "linear" }
+      },
+      "events": []
+    },
+    {
+      "name": "Development - Building Tension",
+      "start": 60,
+      "duration": 60,
+      "forces": {
+        "flow": { "start": 0.4, "end": 0.7, "curve": "easeInOut" },
+        "melody": { "start": 0.3, "end": 0.8, "curve": "easeIn" },
+        "rhythm": { "start": 0.2, "end": 0.75, "curve": "easeIn" },
+        "density": { "start": 0.35, "end": 0.85, "curve": "easeOut" },
+        "harmony": { "start": 0.6, "end": 0.25, "curve": "easeInOut" },
+        "timbre": { "start": 0.4, "end": 0.8, "curve": "linear" }
+      },
+      "events": [
+        { "time": 30, "type": "pulse", "intensity": 0.6 }
+      ]
+    },
+    {
+      "name": "Resolution",
+      "start": 120,
+      "duration": 60,
+      "forces": {
+        "flow": { "start": 0.7, "end": 0.3, "curve": "easeOut" },
+        "melody": { "start": 0.8, "end": 0.4, "curve": "easeOut" },
+        "rhythm": { "start": 0.75, "end": 0.2, "curve": "easeOut" },
+        "density": { "start": 0.85, "end": 0.25, "curve": "easeInOut" },
+        "harmony": { "start": 0.25, "end": 0.8, "curve": "easeIn" },
+        "timbre": { "start": 0.8, "end": 0.4, "curve": "linear" }
+      },
+      "events": []
+    }
+  ]
+}
