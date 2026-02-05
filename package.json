@@ -12,6 +12,8 @@
     "react-dom": "^18.2.0",
     "@react-three/fiber": "^8.15.0",
     "@react-three/drei": "^9.88.0",
+    "@react-three/postprocessing": "^2.15.0",
+    "postprocessing": "^6.34.0",
     "three": "^0.158.0",
     "tone": "^14.7.77",
     "zustand": "^4.4.0"

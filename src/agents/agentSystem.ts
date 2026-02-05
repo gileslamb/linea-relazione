@@ -9,15 +9,13 @@ export class AgentSystem {
   private config: AgentSystemConfig
   private params: BehaviorParams
   private spatialGrid: SpatialGrid
+  private time: number = 0  // Track time for wave propagation
 
   constructor(config: AgentSystemConfig, params: BehaviorParams) {
     this.config = config
     this.params = params
     
-    // Initialize spatial grid with cell size = perception radius
     this.spatialGrid = new SpatialGrid(params.perceptionRadius, config.bounds)
-    
-    // Spawn initial agents
     this.spawnAgents(config.initialCount)
   }
 
@@ -34,12 +32,12 @@ export class AgentSystem {
     for (let i = 0; i < count; i++) {
       const position = randomInSphere(spawnRadius)
       
-      // Random initial velocity
+      // Random initial velocity with slight upward bias (like birds)
       const velocity = new THREE.Vector3(
         randomRange(-1, 1),
-        randomRange(-1, 1),
+        randomRange(-0.5, 1.5),  // Upward bias
         randomRange(-1, 1)
-      ).normalize().multiplyScalar(randomRange(0.5, 2))
+      ).normalize().multiplyScalar(randomRange(1, 3))
 
       const agent = new LineAgent(position, velocity, this.params)
       this.agents.push(agent)
@@ -50,7 +48,9 @@ export class AgentSystem {
    * Update all agents
    */
   update(): void {
-    // Rebuild spatial grid
+    this.time += 0.016  // Approximate 60fps timestep
+
+    // Rebuild spatial grid for efficient neighbor queries
     this.spatialGrid.clear()
     for (const agent of this.agents) {
       this.spatialGrid.insert(agent.state)
@@ -74,15 +74,23 @@ export class AgentSystem {
       // Apply behaviors
       agent.flock(neighbors)
       agent.constrain(this.config.bounds)
-      agent.update()
+      agent.applyWave(this.time)  // NEW: wave propagation
+      agent.update(this.time)     // NEW: pass time parameter
     }
   }
 
   /**
-   * Get all agent states for rendering
+   * Get all agent states for rendering (deprecated, use getAgents)
    */
   getAgentStates() {
     return this.agents.map(a => a.state)
+  }
+
+  /**
+   * Get full agent objects (needed for trails and rotation)
+   */
+  getAgents(): LineAgent[] {
+    return this.agents
   }
 
   /**
@@ -103,7 +111,7 @@ export class AgentSystem {
   }
 
   /**
-   * Add agents
+   * Add agents dynamically
    */
   addAgents(count: number): void {
     if (this.agents.length + count <= this.config.maxAgents) {
@@ -112,7 +120,7 @@ export class AgentSystem {
   }
 
   /**
-   * Remove agents
+   * Remove agents dynamically
    */
   removeAgents(count: number): void {
     this.agents.splice(0, Math.min(count, this.agents.length))
