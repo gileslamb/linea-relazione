@@ -1,153 +1,174 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { EffectComposer, Bloom } from '@react-three/postprocessing'
-import { AgentSystem } from '../agents/agentSystem'
-import { LineAgent } from '../agents/LineAgent'
-import { DEFAULT_SYSTEM_CONFIG, VISUAL_PARAMS } from '../utils/constants'
-import { MusicalForces, DEFAULT_MUSICAL_FORCES } from '../forces/types'
-import { interpretMusicalForces, interpretVisualForces, getShapeFromRhythm, getShapeStrength } from '../forces/forceInterpreter'
-import { LineAgents } from './LineAgents'
+import { WaveParams } from '../field/waveField'
+import { WaveFieldRenderer } from './WaveFieldRenderer'
 import { Camera } from './Camera'
-import { Atmosphere } from './Atmosphere'
-import { Pointillism } from './Pointillism'
-import { CloudParticles } from './CloudParticles'
-import { DebugView } from '../ui/DebugView'
+import { MusicalForces } from '../ui/MusicalForces'
+import { AudioControls } from '../ui/AudioControls'
+import { AudioEngine } from '../audio/audioEngine'
+import { FeatureExtractor, AudioFeatures } from '../audio/featureExtractor'
+
+const DEFAULT_WAVE_PARAMS: WaveParams = {
+  harmony: 0.7,
+  flow: 0.75,
+  density: 0.5,
+  spaceDepth: 0.5,
+  rhythm: 0.3,
+  timbre: 0.2
+}
+
+const TRACER_COUNT = 150
 
 export function Scene() {
-  const agentSystemRef = useRef<AgentSystem | null>(null)
-  const [agents, setAgents] = useState<LineAgent[]>([])
-  const [musicalForces, setMusicalForces] = useState<MusicalForces>(DEFAULT_MUSICAL_FORCES)
-  const [fps, setFps] = useState<number>(60)
-  
-  const lastTimeRef = useRef<number>(performance.now())
-  const frameCountRef = useRef<number>(0)
+  const [waveParams, setWaveParams] = useState<WaveParams>(DEFAULT_WAVE_PARAMS)
+  const [fps, setFps] = useState(60)
+  const [trailLength, setTrailLength] = useState(20)
 
-  // Derive visual parameters from musical forces
-  const visualParams = interpretVisualForces(musicalForces)
+  // Audio state
+  const audioEngineRef = useRef<AudioEngine | null>(null)
+  const featureExtractorRef = useRef<FeatureExtractor | null>(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [hasAudio, setHasAudio] = useState(false)
+  const [audioFeatures, setAudioFeatures] = useState<AudioFeatures | null>(null)
 
-  // Initialize agent system
+  // Store manual params so we can restore them when audio stops
+  const manualParamsRef = useRef<WaveParams>(DEFAULT_WAVE_PARAMS)
+
+  // Initialize audio engine
   useEffect(() => {
-    const behaviorParams = interpretMusicalForces(musicalForces)
-    
-    agentSystemRef.current = new AgentSystem(
-      DEFAULT_SYSTEM_CONFIG,
-      behaviorParams
-    )
-    
-    // Apply initial shape/rhythm settings
-    const shapeType = getShapeFromRhythm(musicalForces.rhythm)
-    const shapeStrength = getShapeStrength(musicalForces.rhythm)
-    agentSystemRef.current.setShapeBehavior(shapeType, shapeStrength)
-    agentSystemRef.current.setRhythmStrength(musicalForces.rhythm * 0.1)
-    
-    setAgents(agentSystemRef.current.getAgents())
+    audioEngineRef.current = new AudioEngine()
+    return () => {
+      audioEngineRef.current?.dispose()
+    }
   }, [])
 
-  // Update loop
+  // Feature extraction loop - runs only when audio is playing
   useEffect(() => {
-    let animationFrameId: number
+    if (!isPlaying || !featureExtractorRef.current) return
 
-    const update = () => {
-      if (agentSystemRef.current) {
-        agentSystemRef.current.update()
-        setAgents([...agentSystemRef.current.getAgents()])
+    let animFrameId: number
+    let frameCount = 0
 
-        // Calculate FPS
-        frameCountRef.current++
-        const now = performance.now()
-        if (now - lastTimeRef.current >= 1000) {
-          setFps(frameCountRef.current)
-          frameCountRef.current = 0
-          lastTimeRef.current = now
-        }
+    const extractLoop = () => {
+      const extractor = featureExtractorRef.current
+      if (!extractor) return
+
+      const features = extractor.extractSmoothed()
+      const audioParams = extractor.toWaveParams(features)
+
+      // Update wave params from audio (every frame for smooth 3D)
+      setWaveParams(audioParams)
+
+      // Update UI display at ~15fps to avoid excessive DOM updates
+      frameCount++
+      if (frameCount % 4 === 0) {
+        setAudioFeatures(features)
       }
 
-      animationFrameId = requestAnimationFrame(update)
+      animFrameId = requestAnimationFrame(extractLoop)
     }
 
-    update()
+    extractLoop()
 
     return () => {
-      cancelAnimationFrame(animationFrameId)
+      cancelAnimationFrame(animFrameId)
     }
-  }, [])
+  }, [isPlaying])
 
-  // Handle musical force changes from debug sliders
-  const handleForceChange = (force: keyof MusicalForces, value: number) => {
-    const newForces = { ...musicalForces, [force]: value }
-    setMusicalForces(newForces)
-    
-    if (agentSystemRef.current) {
-      // Update behavior parameters
-      const newParams = interpretMusicalForces(newForces)
-      agentSystemRef.current.updateParams(newParams)
-      
-      // Update shape behavior based on rhythm
-      const shapeType = getShapeFromRhythm(newForces.rhythm)
-      const shapeStrength = getShapeStrength(newForces.rhythm)
-      agentSystemRef.current.setShapeBehavior(shapeType, shapeStrength)
-      
-      // Update rhythm pulse
-      agentSystemRef.current.setRhythmStrength(newForces.rhythm * 0.1)
+  // Manual slider changes (only when not playing audio)
+  const handleParamChange = useCallback((param: keyof WaveParams, value: number) => {
+    const newParams = { ...manualParamsRef.current, [param]: value }
+    manualParamsRef.current = newParams
+    if (!isPlaying) {
+      setWaveParams(newParams)
+    }
+  }, [isPlaying])
+
+  const handleFileUpload = async (file: File) => {
+    console.log('File selected:', file.name, file.type, file.size)
+    if (!audioEngineRef.current) {
+      console.error('No audio engine')
+      return
+    }
+    try {
+      await audioEngineRef.current.loadAudioFile(file)
+
+      // Initialize feature extractor from the analyser
+      const analyser = audioEngineRef.current.getAnalyser()
+      if (analyser) {
+        featureExtractorRef.current = new FeatureExtractor(analyser)
+        console.log('Feature extractor ready')
+      }
+
+      setHasAudio(true)
+      console.log('hasAudio set to true — controls should appear')
+    } catch (error) {
+      console.error('Error loading audio:', error)
     }
   }
 
-  // Dynamic bloom based on timbre (bright = more bloom)
-  const bloomIntensity = VISUAL_PARAMS.bloomIntensity + visualParams.glowIntensity
+  const handlePlay = () => {
+    if (!audioEngineRef.current) return
+    audioEngineRef.current.play()
+    setIsPlaying(true)
+  }
+
+  const handlePause = () => {
+    if (!audioEngineRef.current) return
+    audioEngineRef.current.pause()
+    setIsPlaying(false)
+    setAudioFeatures(null)
+    // Restore manual params when stopping
+    setWaveParams(manualParamsRef.current)
+  }
 
   return (
     <>
       <Canvas
-        camera={{ position: [400, 300, 400], fov: 50 }}
+        camera={{ position: [300, 200, 300], fov: 60 }}
         style={{ background: '#000' }}
-        gl={{ 
+        gl={{
           antialias: true,
           alpha: false,
           powerPreference: 'high-performance'
         }}
       >
         <Camera />
-        <Atmosphere />
-        
-        {/* Flowing curved ribbons */}
-        <LineAgents 
-          agents={agents}
-          curveIntensity={visualParams.curveIntensity}
-          lineWidth={visualParams.lineWidth}
-          opacity={visualParams.opacity}
+        <ambientLight intensity={0.5} />
+        <WaveFieldRenderer
+          params={waveParams}
+          tracerCount={TRACER_COUNT}
+          trailLength={trailLength}
+          onFps={setFps}
         />
-        
-        {/* Pointillism dots at agent positions (Seurat-like) */}
-        {VISUAL_PARAMS.usePointillism && (
-          <Pointillism 
-            agents={agents}
-            pointSize={visualParams.pointSize}
-            brightness={0.5 + musicalForces.timbre * 0.5}
+        <EffectComposer>
+          <Bloom
+            intensity={1.5}
+            luminanceThreshold={0.2}
+            luminanceSmoothing={0.9}
+            mipmapBlur
           />
-        )}
-        
-        {/* Atmospheric cloud particles */}
-        {VISUAL_PARAMS.useCloudParticles && <CloudParticles agents={agents} />}
-        
-        {/* Post-processing bloom for luminous quality */}
-        {VISUAL_PARAMS.useBloom && (
-          <EffectComposer>
-            <Bloom 
-              intensity={bloomIntensity}
-              luminanceThreshold={0.1}  // Lower threshold for more glow
-              luminanceSmoothing={0.9}
-              mipmapBlur
-              radius={1.2}  // Larger glow radius
-            />
-          </EffectComposer>
-        )}
+        </EffectComposer>
       </Canvas>
 
-      <DebugView
-        agentCount={agents.length}
+      <MusicalForces
+        params={waveParams}
+        onParamChange={handleParamChange}
         fps={fps}
-        musicalForces={musicalForces}
-        onForceChange={handleForceChange}
+        tracerCount={TRACER_COUNT}
+        trailLength={trailLength}
+        onTrailChange={setTrailLength}
+        isPlaying={isPlaying}
+        audioFeatures={audioFeatures}
+      />
+
+      <AudioControls
+        onFileUpload={handleFileUpload}
+        onPlay={handlePlay}
+        onPause={handlePause}
+        isPlaying={isPlaying}
+        hasAudio={hasAudio}
       />
     </>
   )
