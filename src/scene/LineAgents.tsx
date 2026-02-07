@@ -190,7 +190,6 @@ function FlowingRibbon({
       transparent
       opacity={opacity}
       depthWrite={false}
-      // @ts-expect-error - blending is valid for Line2
       blending={THREE.AdditiveBlending}
     />
   )
