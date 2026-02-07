@@ -93,6 +93,16 @@ export class AudioEngine {
     return this.analyser
   }
 
+  getProgress(): number {
+    if (!this.isPlaying || !this.audioBuffer || !this.audioContext) return 0
+    const elapsed = this.audioContext.currentTime - this.startTime
+    return Math.min(elapsed / this.audioBuffer.duration, 1)
+  }
+
+  getDuration(): number {
+    return this.audioBuffer?.duration ?? 0
+  }
+
   dispose(): void {
     if (this.isPlaying) {
       this.pause()
