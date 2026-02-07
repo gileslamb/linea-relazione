@@ -19,22 +19,22 @@ export const DEFAULT_SYSTEM_CONFIG: AgentSystemConfig = {
   bounds: new THREE.Vector3(500, 500, 500)  // Larger space
 }
 
-// Visual parameters - for elegant rendering
+// Visual parameters - for elegant, effervescent rendering
 export const VISUAL_PARAMS = {
-  lineLength: 25,              // Slightly longer lines
-  lineThickness: 1.0,          // Thinner for elegance
-  lineOpacity: 0.9,            // Increased for bloom
+  lineLength: 25,              // Base line length (now curves are dynamic)
+  lineThickness: 1.5,          // Slightly thicker for curve visibility
+  lineOpacity: 0.8,            // Good visibility with additive blending
   lineColor: 0xe0f0ff,         // Soft blue-white
   trailLength: 8,              // Number of trail segments per line
   trailFade: 0.15,             // Opacity decay per segment
   useMotionBlur: true,         // Enable motion blur stretching
   useAdditiveBlending: true,   // Overlaps glow (additive)
-  useTrails: true,             // Enable trail rendering
+  useTrails: false,            // Disable old trail system (curves handle this now)
   usePointillism: true,        // Pointillism dots at agent positions
   useCloudParticles: true,     // Atmospheric cloud particles
   useBloom: true,              // Post-processing bloom effect
-  bloomIntensity: 1.5,         // Bloom strength (0.5-3.0)
-  bloomThreshold: 0.2,         // Luminance threshold for bloom
+  bloomIntensity: 2.5,         // INCREASED - much stronger bloom
+  bloomThreshold: 0.1,         // LOWERED - more elements glow
   bloomSmoothing: 0.9          // Bloom smoothing factor
 }
 

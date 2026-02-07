@@ -3,6 +3,7 @@ import { LineAgent } from './LineAgent'
 import { AgentSystemConfig, BehaviorParams } from './types'
 import { SpatialGrid } from '../utils/spatial'
 import { randomInSphere, randomRange } from '../utils/math'
+import { ShapeType } from './behaviors'
 
 export class AgentSystem {
   private agents: LineAgent[] = []
@@ -10,6 +11,11 @@ export class AgentSystem {
   private params: BehaviorParams
   private spatialGrid: SpatialGrid
   private time: number = 0  // Track time for wave propagation
+  
+  // Musical force parameters
+  private shapeType: ShapeType = 'none'
+  private shapeStrength: number = 0
+  private rhythmStrength: number = 0
 
   constructor(config: AgentSystemConfig, params: BehaviorParams) {
     this.config = config
@@ -74,8 +80,13 @@ export class AgentSystem {
       // Apply behaviors
       agent.flock(neighbors)
       agent.constrain(this.config.bounds)
-      agent.applyWave(this.time)  // NEW: wave propagation
-      agent.update(this.time)     // NEW: pass time parameter
+      agent.applyWave(this.time)
+      
+      // Apply musical force behaviors
+      agent.applyShape(this.time, this.shapeStrength, this.shapeType)
+      agent.applyRhythm(this.time, this.rhythmStrength)
+      
+      agent.update(this.time)
     }
   }
 
@@ -105,9 +116,30 @@ export class AgentSystem {
    */
   updateParams(params: Partial<BehaviorParams>): void {
     this.params = { ...this.params, ...params }
+    
+    // Update spatial grid if perception changed
+    if (params.perceptionRadius) {
+      this.spatialGrid = new SpatialGrid(params.perceptionRadius, this.config.bounds)
+    }
+    
     for (const agent of this.agents) {
       agent.updateParams(this.params)
     }
+  }
+
+  /**
+   * Set shape formation parameters
+   */
+  setShapeBehavior(shapeType: ShapeType, strength: number): void {
+    this.shapeType = shapeType
+    this.shapeStrength = strength
+  }
+
+  /**
+   * Set rhythmic pulse strength
+   */
+  setRhythmStrength(strength: number): void {
+    this.rhythmStrength = strength
   }
 
   /**

@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { AgentState, BehaviorParams, Neighbor } from './types'
 import { limit } from '../utils/math'
-import { cohesion, alignment, separation, boundSphere } from './behaviors'
+import { cohesion, alignment, separation, boundSphere, shapeAttraction, rhythmicPulse, ShapeType } from './behaviors'
 import { MOVEMENT_PARAMS } from '../utils/constants'
 
 export class LineAgent {
@@ -106,6 +106,26 @@ export class LineAgent {
     )
     
     this.state.acceleration.add(waveForce.multiplyScalar(0.01))
+  }
+
+  /**
+   * Apply shape formation behavior (dancing/form-creating)
+   */
+  applyShape(time: number, strength: number, shapeType: ShapeType): void {
+    if (strength > 0 && shapeType !== 'none') {
+      const shapeForce = shapeAttraction(this.state, time, strength, shapeType)
+      this.state.acceleration.add(shapeForce)
+    }
+  }
+
+  /**
+   * Apply rhythmic pulse for synchronized breathing motion
+   */
+  applyRhythm(time: number, strength: number): void {
+    if (strength > 0) {
+      const pulseForce = rhythmicPulse(this.state, time, strength)
+      this.state.acceleration.add(pulseForce)
+    }
   }
 
   /**

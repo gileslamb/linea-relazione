@@ -3,8 +3,9 @@ import { Canvas } from '@react-three/fiber'
 import { EffectComposer, Bloom } from '@react-three/postprocessing'
 import { AgentSystem } from '../agents/agentSystem'
 import { LineAgent } from '../agents/LineAgent'
-import { BehaviorParams } from '../agents/types'
-import { DEFAULT_BEHAVIOR_PARAMS, DEFAULT_SYSTEM_CONFIG, VISUAL_PARAMS } from '../utils/constants'
+import { DEFAULT_SYSTEM_CONFIG, VISUAL_PARAMS } from '../utils/constants'
+import { MusicalForces, DEFAULT_MUSICAL_FORCES } from '../forces/types'
+import { interpretMusicalForces, interpretVisualForces, getShapeFromRhythm, getShapeStrength } from '../forces/forceInterpreter'
 import { LineAgents } from './LineAgents'
 import { Camera } from './Camera'
 import { Atmosphere } from './Atmosphere'
@@ -15,18 +16,29 @@ import { DebugView } from '../ui/DebugView'
 export function Scene() {
   const agentSystemRef = useRef<AgentSystem | null>(null)
   const [agents, setAgents] = useState<LineAgent[]>([])
-  const [params, setParams] = useState<BehaviorParams>(DEFAULT_BEHAVIOR_PARAMS)
+  const [musicalForces, setMusicalForces] = useState<MusicalForces>(DEFAULT_MUSICAL_FORCES)
   const [fps, setFps] = useState<number>(60)
   
   const lastTimeRef = useRef<number>(performance.now())
   const frameCountRef = useRef<number>(0)
 
+  // Derive visual parameters from musical forces
+  const visualParams = interpretVisualForces(musicalForces)
+
   // Initialize agent system
   useEffect(() => {
+    const behaviorParams = interpretMusicalForces(musicalForces)
+    
     agentSystemRef.current = new AgentSystem(
       DEFAULT_SYSTEM_CONFIG,
-      DEFAULT_BEHAVIOR_PARAMS
+      behaviorParams
     )
+    
+    // Apply initial shape/rhythm settings
+    const shapeType = getShapeFromRhythm(musicalForces.rhythm)
+    const shapeStrength = getShapeStrength(musicalForces.rhythm)
+    agentSystemRef.current.setShapeBehavior(shapeType, shapeStrength)
+    agentSystemRef.current.setRhythmStrength(musicalForces.rhythm * 0.1)
     
     setAgents(agentSystemRef.current.getAgents())
   }, [])
@@ -60,15 +72,28 @@ export function Scene() {
     }
   }, [])
 
-  // Handle parameter changes from debug sliders
-  const handleParamChange = (param: keyof BehaviorParams, value: number) => {
-    const newParams = { ...params, [param]: value }
-    setParams(newParams)
+  // Handle musical force changes from debug sliders
+  const handleForceChange = (force: keyof MusicalForces, value: number) => {
+    const newForces = { ...musicalForces, [force]: value }
+    setMusicalForces(newForces)
     
     if (agentSystemRef.current) {
+      // Update behavior parameters
+      const newParams = interpretMusicalForces(newForces)
       agentSystemRef.current.updateParams(newParams)
+      
+      // Update shape behavior based on rhythm
+      const shapeType = getShapeFromRhythm(newForces.rhythm)
+      const shapeStrength = getShapeStrength(newForces.rhythm)
+      agentSystemRef.current.setShapeBehavior(shapeType, shapeStrength)
+      
+      // Update rhythm pulse
+      agentSystemRef.current.setRhythmStrength(newForces.rhythm * 0.1)
     }
   }
+
+  // Dynamic bloom based on timbre (bright = more bloom)
+  const bloomIntensity = VISUAL_PARAMS.bloomIntensity + visualParams.glowIntensity
 
   return (
     <>
@@ -83,10 +108,23 @@ export function Scene() {
       >
         <Camera />
         <Atmosphere />
-        <LineAgents agents={agents} />
+        
+        {/* Flowing curved ribbons */}
+        <LineAgents 
+          agents={agents}
+          curveIntensity={visualParams.curveIntensity}
+          lineWidth={visualParams.lineWidth}
+          opacity={visualParams.opacity}
+        />
         
         {/* Pointillism dots at agent positions (Seurat-like) */}
-        {VISUAL_PARAMS.usePointillism && <Pointillism agents={agents} />}
+        {VISUAL_PARAMS.usePointillism && (
+          <Pointillism 
+            agents={agents}
+            pointSize={visualParams.pointSize}
+            brightness={0.5 + musicalForces.timbre * 0.5}
+          />
+        )}
         
         {/* Atmospheric cloud particles */}
         {VISUAL_PARAMS.useCloudParticles && <CloudParticles agents={agents} />}
@@ -95,10 +133,11 @@ export function Scene() {
         {VISUAL_PARAMS.useBloom && (
           <EffectComposer>
             <Bloom 
-              intensity={VISUAL_PARAMS.bloomIntensity}
-              luminanceThreshold={VISUAL_PARAMS.bloomThreshold}
-              luminanceSmoothing={VISUAL_PARAMS.bloomSmoothing}
+              intensity={bloomIntensity}
+              luminanceThreshold={0.1}  // Lower threshold for more glow
+              luminanceSmoothing={0.9}
               mipmapBlur
+              radius={1.2}  // Larger glow radius
             />
           </EffectComposer>
         )}
@@ -107,8 +146,8 @@ export function Scene() {
       <DebugView
         agentCount={agents.length}
         fps={fps}
-        params={params}
-        onParamChange={handleParamChange}
+        musicalForces={musicalForces}
+        onForceChange={handleForceChange}
       />
     </>
   )
